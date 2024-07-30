@@ -7,8 +7,9 @@ namespace Threads
         private static int _completedThreadNum = 0;
         private static int _numOfWords = 0;
         private static int _wordLength = 0;
-        private static string? _longestString = null;
-        private static string? _shortestString = null;
+        private static List<string> _longestStrings = new List<string>();
+        private static List<string> _shortestStrings = new List<string>();
+        private static object listLock = new object();
         private static ConcurrentDictionary<string, int> _dictionary = new ConcurrentDictionary<string, int>();
 
         public static void AnalyzeFile(object stateInfo)
@@ -17,6 +18,8 @@ namespace Threads
             string text = File.ReadAllText(path);
             string[] words = text.Split(" ");
             Interlocked.Add(ref _numOfWords, words.Length);
+            string longestString, shortestString;
+            longestString = shortestString = words[0];
 
             foreach (string word in words)
             {
@@ -30,15 +33,21 @@ namespace Threads
 
                 Interlocked.Add(ref _wordLength, length);
 
-                if (length > _longestString.Length)
+                if (length > longestString.Length)
                 {
-                    Interlocked.Exchange(ref _longestString, word);
+                    longestString = word;
                 }
 
-                if (length < _shortestString.Length)
+                if (length < shortestString.Length)
                 {
-                    Interlocked.Exchange(ref _shortestString, word);
+                    shortestString = word;
                 }
+            }
+
+            lock (listLock)
+            {
+                _longestStrings.Add(longestString);
+                _shortestStrings.Add(shortestString);
             }
             Interlocked.Increment(ref _completedThreadNum);
         }
@@ -55,7 +64,7 @@ namespace Threads
 
             IEnumerator<KeyValuePair<string, int>> enumerator = _dictionary.GetEnumerator();
             int occurence = 0;
-            string mostCommonWord = "";
+            string? mostCommonWord = null;
 
             while (enumerator.MoveNext())
             {
@@ -68,12 +77,34 @@ namespace Threads
                 }
             }
 
+            string longestWord = _longestStrings[0];
+
+            foreach (string word in _longestStrings)
+            {
+                if (longestWord.Length < word.Length)
+                {
+                    longestWord = word;
+                }
+            }
+
+            string shortestWord = _shortestStrings[0];
+
+            foreach (string word in _shortestStrings)
+            {
+                if (shortestWord.Length > word.Length)
+                {
+                    shortestWord = word;
+                }
+            }
+
             Console.WriteLine($"num of words: {_numOfWords}\n" +
                               $"word length: {_wordLength}\n" +
                               $"Average word length: {_wordLength / _numOfWords}\n" +
-                              $"longest string: {_longestString}\n" +
-                              $"shortest string: {_shortestString}\n" +
+                              $"longest string: {longestWord}\n" +
+                              $"shortest string: {shortestWord}\n" +
                               $"most common word: \"{mostCommonWord}\" with occurence {occurence} times\n");
+
+            Console.ReadKey();
         }
     }
 }
