@@ -9,7 +9,7 @@ namespace Threads
         private static int _wordLength = 0;
         private static List<string> _longestStrings = new List<string>();
         private static List<string> _shortestStrings = new List<string>();
-        private static object listLock = new object();
+        private static object _listLock = new object();
         private static ConcurrentDictionary<string, int> _dictionary = new ConcurrentDictionary<string, int>();
 
         public static void AnalyzeFile(object stateInfo)
@@ -20,7 +20,7 @@ namespace Threads
             Interlocked.Add(ref _numOfWords, words.Length);
             string longestString, shortestString;
             longestString = shortestString = words[0];
-
+            
             foreach (string word in words)
             {
                 _dictionary.AddOrUpdate(word, 1, (key, value) => value + 1);
@@ -44,7 +44,7 @@ namespace Threads
                 }
             }
 
-            lock (listLock)
+            lock (_listLock)
             {
                 _longestStrings.Add(longestString);
                 _shortestStrings.Add(shortestString);
@@ -54,8 +54,12 @@ namespace Threads
 
         public static void Main()
         {
-            ThreadPool.QueueUserWorkItem(AnalyzeFile, "../../../text/text1.txt");
-            ThreadPool.QueueUserWorkItem(AnalyzeFile, "../../../text/text2.txt");
+            string[] files = Directory.GetFiles("../../../text");
+
+            foreach (string file in files)
+            {
+                ThreadPool.QueueUserWorkItem(AnalyzeFile, file);
+            }
 
             while (_completedThreadNum < 2)
             {
